@@ -8,30 +8,32 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Script that compiles and injects Karel files into a controller"
     )
-    parser.add_argument("-i","--ip", required=True , help='Robot ip address')
-    parser.add_argument("-f","--file", required=True, help="file name to inject without the extension")
-    parser.add_argument("-t","--test",action='store_true', help="enable if injecting a unit test")
+    parser.add_argument("file", help="Base name of the Karel file (without extension)")
+    parser.add_argument("-i", "--ip",default="127.0.0.1", help="Robot IP address")
+    parser.add_argument("-t", "--test", action="store_true", help="Enable unit test execution after injection")
     args = parser.parse_args()
 
     robotip = args.ip
     karelfile = args.file
-    compiled = karelfile.lower() + '.pc'
-    
+    compiled = karelfile.lower() + ".pc"
+
     if os.path.exists(compiled):
         os.remove(compiled)
 
-    subprocess.run(['ktrans',karelfile + '.kl'],timeout=20,capture_output=True,text=True)
+    result = subprocess.run(["ktrans", karelfile + ".kl"], timeout=20, capture_output=True, text=True)
 
     if not os.path.exists(compiled):
-        raise TypeError('Ktrans did not compile successfully')
+        print("Compilation failed:")
+        print(result.stdout)
+        print(result.stderr)
+        raise TypeError("Ktrans did not compile successfully")
 
     with FTP(robotip) as ftp:
         ftp.login()
-        file = open(compiled,'rb')
-        ftp.storbinary('STOR '+ compiled,file)
-        file.close()
+        with open(compiled, "rb") as file:
+            ftp.storbinary("STOR " + compiled, file)
         ftp.quit()
-        
+
     if args.test:
-        url= 'http://' + robotip + ':9001/KAREL/kunit?filenames=' + karelfile
+        url = f"http://{robotip}:9001/KAREL/kunit?filenames={karelfile}"
         webbrowser.open_new_tab(url)
